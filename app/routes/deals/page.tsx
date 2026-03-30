@@ -1,8 +1,5 @@
-export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
-export const revalidate = 0;
 
-import { KanbanBoard } from '@/components/KanbanBoard';
+import { KanbanBoard } from '../../../components/KanbanBoard';
 
 const DealsPage = () => {
   return (
