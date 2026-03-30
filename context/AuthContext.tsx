@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { onAuthStateChanged, signInWithRedirect, GoogleAuthProvider, getRedirectResult } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase/firebase';
 
@@ -34,33 +34,70 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser?.email) {
-        const userRef = doc(db, 'users', firebaseUser.email);
-        const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists()) {
-          setUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            ...userSnap.data(),
-          });
-        } else {
-          setUser(null); // block unauthorized users
+    // Handle redirect result
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result) {
+          console.log("REDIRECT RESULT RECEIVED:", result.user.email);
         }
-      } else {
+      })
+      .catch((error) => {
+        console.error("Redirect error:", error);
+      });
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      try {
+        if (!firebaseUser?.email) {
+          setUser(null);
+          return;
+        }
+
+        const email = firebaseUser.email.toLowerCase();
+        console.log("USER EMAIL:", email);
+
+        // Domain restriction
+        if (!email.endsWith("@simpliwork.com")) {
+          console.error("Invalid domain:", email);
+          await auth.signOut();
+          setUser(null);
+          return;
+        }
+
+        // Firestore lookup
+        const userDoc = await getDoc(doc(db, "users", email));
+
+        if (!userDoc.exists()) {
+          console.error("User not authorized:", email);
+          await auth.signOut();
+          setUser(null);
+          return;
+        }
+
+        const role = userDoc.data().role;
+        console.log("ROLE:", role);
+
+        setUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+          role,
+        });
+
+      } catch (error) {
+        console.error("Auth error:", error);
         setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
   const signInWithGoogle = async () => {
+    console.log("LOGIN TRIGGERED");
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    await signInWithRedirect(auth, provider);
   };
 
   const logout = async () => {
