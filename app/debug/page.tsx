@@ -30,4 +30,3 @@ const DebugAuthPage = () => {
 };
 
 export default DebugAuthPage;
-'''
