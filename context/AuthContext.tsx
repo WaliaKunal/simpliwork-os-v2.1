@@ -33,10 +33,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
 
-    // Handle redirect result ONCE
-      .then(() => {
-      })
-      .catch((error) => {
         console.error("Redirect error:", error);
       });
 
