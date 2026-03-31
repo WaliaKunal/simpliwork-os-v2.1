@@ -1,41 +1,37 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/firebase';
 
-interface AppUser {
+type UserType = {
   uid: string;
   email: string | null;
   displayName: string | null;
-  role?: string;
-}
+  role: string;
+};
 
-interface AuthContextType {
-  user: AppUser | null;
+type AuthContextType = {
+  user: UserType | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
-}
+};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within AuthProvider");
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<AppUser | null>(null);
+export default function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-
-        console.error("Redirect error:", error);
-      });
-
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log("AUTH → firebaseUser:", firebaseUser?.email);
 
@@ -45,36 +41,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
+      const email = firebaseUser.email.toLowerCase();
+
+      if (!email.endsWith("@simpliwork.com")) {
+        await signOut(auth);
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
       try {
-        const email = firebaseUser.email.toLowerCase();
-
-        console.log("AUTH → checking domain:", email);
-
-        if (!email.endsWith("@simpliwork.com")) {
-          console.log("AUTH → SIGNING OUT (invalid domain)");
-          await auth.signOut();
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-
-        console.log("AUTH → querying Firestore:", email);
-
         const userDoc = await getDoc(doc(db, "users", email));
 
-        console.log("AUTH → userDoc exists:", userDoc.exists());
-
         if (!userDoc.exists()) {
-          console.log("AUTH → SIGNING OUT (not in DB)");
-          await auth.signOut();
+          await signOut(auth);
           setUser(null);
           setLoading(false);
           return;
         }
 
         const role = userDoc.data().role;
-
-        console.log("AUTH → role:", role);
 
         setUser({
           uid: firebaseUser.uid,
@@ -83,28 +69,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           role,
         });
 
-      } catch (error) {
-        console.error("Auth error:", error);
+      } catch (err) {
+        console.error("Auth error:", err);
         setUser(null);
-      } finally {
-        setLoading(false);
       }
+
+      setLoading(false);
     });
 
     return () => unsubscribe();
-
   }, []);
 
   const signInWithGoogle = async () => {
     console.log("LOGIN TRIGGERED");
     const provider = new GoogleAuthProvider();
-    await setPersistence(auth, browserLocalPersistence);
     await signInWithPopup(auth, provider);
   };
 
-
   const logout = async () => {
-    await auth.signOut();
+    await signOut(auth);
+    setUser(null);
   };
 
   return (
@@ -112,4 +96,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       {!loading && children}
     </AuthContext.Provider>
   );
-};
+}
