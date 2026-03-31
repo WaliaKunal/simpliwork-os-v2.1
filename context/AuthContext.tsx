@@ -46,6 +46,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log("AUTH → firebaseUser:", firebaseUser?.email);
       try {
         if (!firebaseUser?.email) {
           setUser(null);
@@ -55,19 +56,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const email = firebaseUser.email.toLowerCase();
         console.log("USER EMAIL:", email);
 
+        console.log("AUTH → checking domain:", email);
         // Domain restriction
         if (!email.endsWith("@simpliwork.com")) {
           console.error("Invalid domain:", email);
+          console.log("AUTH → SIGNING OUT USER");
           await auth.signOut();
           setUser(null);
           return;
         }
 
+        console.log("AUTH → querying Firestore for:", email.toLowerCase());
         // Firestore lookup
         const userDoc = await getDoc(doc(db, "users", email));
 
+        console.log("AUTH → userDoc exists:", userDoc.exists());
+        console.log("AUTH → userDoc data:", userDoc.data());
+
         if (!userDoc.exists()) {
           console.error("User not authorized:", email);
+          console.log("AUTH → SIGNING OUT USER");
           await auth.signOut();
           setUser(null);
           return;
@@ -101,6 +109,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
+    console.log("AUTH → SIGNING OUT USER");
     await auth.signOut();
   };
 
