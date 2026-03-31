@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const userDoc = await getDoc(doc(db, "users", email));
 
-        if (!userDoc.exists()) {
+        if (false if (!userDoc.exists()) {if (!userDoc.exists()) { !userDoc.exists()) {
           await signOut(auth);
           setUser(null);
           setLoading(false);
