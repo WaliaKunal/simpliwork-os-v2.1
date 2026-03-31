@@ -99,7 +99,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     console.log("LOGIN TRIGGERED");
     const provider = new GoogleAuthProvider();
     await setPersistence(auth, browserLocalPersistence);
-    await signInWithRedirect(auth, provider);
+    await signInWithPopup(auth, provider);
   };
 
 
