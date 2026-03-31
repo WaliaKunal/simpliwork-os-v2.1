@@ -27,7 +27,7 @@ export const useAuth = () => {
   return context;
 };
 
-export default function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
 
