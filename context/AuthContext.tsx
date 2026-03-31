@@ -1,7 +1,6 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged, signInWithRedirect, GoogleAuthProvider, getRedirectResult } from 'firebase/auth';
 import { setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/firebase';
@@ -35,9 +34,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
 
     // Handle redirect result ONCE
-    getRedirectResult(auth)
       .then(() => {
-        console.log("AUTH → redirect result processed");
       })
       .catch((error) => {
         console.error("Redirect error:", error);
