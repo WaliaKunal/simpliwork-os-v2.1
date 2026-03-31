@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { onAuthStateChanged, signInWithRedirect, GoogleAuthProvider, getRedirectResult } from 'firebase/auth';
+import { setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/firebase';
 
@@ -102,9 +103,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signInWithGoogle = async () => {
+    console.log("LOGIN TRIGGERED");
     const provider = new GoogleAuthProvider();
+    await setPersistence(auth, browserLocalPersistence);
     await signInWithRedirect(auth, provider);
   };
+
 
   const logout = async () => {
     await auth.signOut();
