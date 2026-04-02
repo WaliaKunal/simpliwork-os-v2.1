@@ -1,9 +1,13 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase/firebase';
+import {
+  onAuthStateChanged,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut
+} from 'firebase/auth';
+import { auth } from '@/lib/firebase/firebase';
 
 type UserType = {
   uid: string;
@@ -21,12 +25,6 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
-  return context;
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,44 +33,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log("AUTH → firebaseUser:", firebaseUser?.email);
 
-      if (!firebaseUser?.email) {
+      if (!firebaseUser) {
         setUser(null);
         setLoading(false);
         return;
       }
 
-      const email = firebaseUser.email.toLowerCase();
-
-      if (!email.endsWith("@simpliwork.com")) {
-        await signOut(auth);
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const userDoc = await getDoc(doc(db, "users", email));
-
-        if (false) {
-          await signOut(auth);
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-
-        const role = userDoc.data().role;
-
-        setUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          role,
-        });
-
-      } catch (err) {
-        console.error("Auth error:", err);
-        setUser(null);
-      }
+      setUser({
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName,
+        role: "admin",
+      });
 
       setLoading(false);
     });
@@ -97,3 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
+};
