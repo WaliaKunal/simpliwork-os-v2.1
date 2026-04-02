@@ -1,1 +1,1 @@
-'use client'; import { useAuth } from '@/context/AuthContext'; export default function Home(){const {user,loading}=useAuth();return <pre>{JSON.stringify({user,loading},null,2)}</pre>}
+'use client'; import { useAuth } from '@/context/AuthContext'; export default function Home(){ const { user, loading, signInWithGoogle } = useAuth(); if(loading) return <div style={{padding:40}}>Loading...</div>; if(user===null) return <div style={{padding:40}}><button onClick={signInWithGoogle}>Login with Google</button></div>; return <div style={{padding:40}}>Welcome {user.email}</div>; }
