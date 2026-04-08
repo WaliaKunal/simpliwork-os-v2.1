@@ -1,13 +1,1 @@
-
-import { KanbanBoard } from '../../../components/KanbanBoard';
-
-const DealsPage = () => {
-  return (
-    <div>
-      <h1 className="text-3xl font-bold mb-8">Deals</h1>
-      <KanbanBoard />
-    </div>
-  );
-};
-
-export default DealsPage;
+'use client'; export default function DealsPage(){ return (<div style={{padding:40,fontFamily:'monospace'}}><h1>Deals</h1><p>Deals module coming next</p></div>); }
