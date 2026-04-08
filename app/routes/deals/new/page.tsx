@@ -37,7 +37,7 @@ return (
 <br/><br/>
 <select style={{padding:10,width:'100%',color:'black',background:'white',border:'1px solid #ccc'}} value={selectedBuilding} onChange={e=>setSelectedBuilding(e.target.value)}>
 <option style={{color:'black'}} value=''>Select Building</option>
-{buildings.map(b=>(<option style={{color:'black'}} key={b.id} value={b.id}>{b.name}</option>))}
+{buildings.map(b=>(<option style={{color:'black'}} key={b.id} value={b.id}>{b.building_code}</option>))}
 </select>
 <br/><br/>
 <button onClick={createDeal}>Create</button>
