@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import Link from 'next/link';
-type Deal = { id: string; company_name?: string; approx_requirement_size?: number; stage?: string; };
+type Deal = { id: string; company_name?: string; approx_requirement_size?: number; stage?: string; building_name?: string; };
 export default function DealsPage(){
 const [deals,setDeals]=useState<Deal[]>([]);
 useEffect(()=>{
