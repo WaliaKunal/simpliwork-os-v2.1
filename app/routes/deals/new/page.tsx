@@ -1,56 +1,89 @@
 'use client';
+
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
-import { useRouter } from 'next/navigation';
 
-export default function NewDeal(){
+export default function NewDealPage() {
   const router = useRouter();
+  const [companyName, setCompanyName] = useState('');
+  const [requirementSize, setRequirementSize] = useState('');
+  const [requirementNotes, setRequirementNotes] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const [company,setCompany] = useState('');
-  const [size,setSize] = useState('');
-  const [requirementText,setRequirementText] = useState('');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!companyName.trim()) {
+      alert('Company Name is required.');
+      return;
+    }
+    setLoading(true);
 
-  const createDeal = async () => {
-    const docRef = await addDoc(collection(db,'deals'),{
-      company_name: company,
-      approx_requirement_size: Number(size),
-      requirement_text: requirementText,
-      stage: 'New',
-      created_at: new Date()
-    });
-
-    router.push('/routes/deals/' + docRef.id);
+    try {
+      await addDoc(collection(db, 'deals'), {
+        company_name: companyName,
+        approx_requirement_size: Number(requirementSize) || 0,
+        requirement_text: requirementNotes,
+        stage: 'New',
+        created_at: new Date(),
+      });
+      alert('New deal created successfully!');
+      router.push('/routes/deals');
+    } catch (error) {
+      console.error("Error creating deal:", error);
+      alert('Failed to create deal. Please try again.');
+      setLoading(false);
+    }
   };
 
   return (
-    <div style={{padding:40,fontFamily:'monospace'}}>
-      <h1>Create Deal</h1>
-
-      <input
-        placeholder="Company Name"
-        value={company}
-        onChange={e=>setCompany(e.target.value)}
-        style={{display:'block',marginBottom:10,padding:8}}
-      />
-
-      <input
-        placeholder="Size"
-        value={size}
-        onChange={e=>setSize(e.target.value)}
-        style={{display:'block',marginBottom:10,padding:8}}
-      />
-
-      <textarea
-        placeholder="Client requirement (workstations, meeting rooms, notes)"
-        value={requirementText}
-        onChange={e=>setRequirementText(e.target.value)}
-        style={{width:'100%',height:120,marginBottom:10,padding:10}}
-      />
-
-      <button onClick={createDeal} style={{padding:10}}>
-        Create Deal
-      </button>
+    <div style={styles.container}>
+      <h1 style={styles.title}>Create New Deal</h1>
+      <form onSubmit={handleSubmit} style={styles.form}>
+        <div style={styles.formGroup}>
+          <label style={styles.label}>Company Name</label>
+          <input
+            type="text"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            style={styles.input}
+            required
+          />
+        </div>
+        <div style={styles.formGroup}>
+          <label style={styles.label}>Requirement Size (sqft)</label>
+          <input
+            type="number"
+            value={requirementSize}
+            onChange={(e) => setRequirementSize(e.target.value)}
+            style={styles.input}
+          />
+        </div>
+        <div style={styles.formGroup}>
+          <label style={styles.label}>Requirement Notes</label>
+          <textarea
+            value={requirementNotes}
+            onChange={(e) => setRequirementNotes(e.target.value)}
+            style={styles.textarea}
+            rows={4}
+          />
+        </div>
+        <button type="submit" style={styles.button} disabled={loading}>
+          {loading ? 'Creating...' : 'Create Deal'}
+        </button>
+      </form>
     </div>
   );
 }
+
+const styles: { [key: string]: React.CSSProperties } = {
+  container: { padding: '40px', fontFamily: 'monospace', maxWidth: '600px', margin: '0 auto' },
+  title: { fontSize: '24px', marginBottom: '30px', textAlign: 'center' },
+  form: { display: 'flex', flexDirection: 'column', gap: '20px' },
+  formGroup: { display: 'flex', flexDirection: 'column' },
+  label: { marginBottom: '8px', fontSize: '14px', color: '#555' },
+  input: { padding: '12px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '14px' },
+  textarea: { padding: '12px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '14px', fontFamily: 'monospace' },
+  button: { padding: '15px', borderRadius: '5px', border: 'none', backgroundColor: '#007bff', color: 'white', fontSize: '16px', cursor: 'pointer' },
+};
