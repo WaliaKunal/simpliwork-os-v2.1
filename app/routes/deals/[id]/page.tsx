@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { doc, getDoc, updateDoc, collection, getDocs, addDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, addDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useParams } from 'next/navigation';
 
@@ -16,9 +16,12 @@ type Deal = {
 };
 
 type LayoutRequest = {
+  id: string;
   deal_id: string;
   layout_url?: string;
   revision_notes?: string;
+  created_at: any; // Firestore timestamp
+  version: number;
 };
 
 export default function DealDetail() {
@@ -28,14 +31,13 @@ export default function DealDetail() {
   // STATE
   const [deal, setDeal] = useState<Deal | null>(null);
   const [stage, setStage] = useState<string>('');
-  const [layoutUrl, setLayoutUrl] = useState<string | null>(null);
-  const [showRevisionForm, setShowRevisionForm] = useState(false);
-  const [revisionNotes, setRevisionNotes] = useState('');
+  const [layoutRequests, setLayoutRequests] = useState<LayoutRequest[]>([]);
 
   // DATA FETCHING
   const fetchDealData = async () => {
     if (!params.id) return;
 
+    // 1. Fetch Deal
     const dealDocRef = doc(db, 'deals', params.id as string);
     const dealSnap = await getDoc(dealDocRef);
 
@@ -44,17 +46,15 @@ export default function DealDetail() {
       setDeal(dealData);
       setStage(dealData.stage || 'New');
 
-      const layoutRequestsCollection = collection(db, 'layout_requests');
-      const layoutRequestsSnap = await getDocs(layoutRequestsCollection);
-      const matchingRequest = layoutRequestsSnap.docs
-        .map(doc => doc.data() as LayoutRequest)
-        .find(req => req.deal_id === params.id && req.layout_url);
-
-      if (matchingRequest && matchingRequest.layout_url) {
-        setLayoutUrl(matchingRequest.layout_url);
-      } else {
-        setLayoutUrl(null);
-      }
+      // 2. Fetch all layout requests for this deal, sorted by creation time
+      const q = query(
+        collection(db, 'layout_requests'), 
+        where("deal_id", "==", params.id),
+        orderBy("created_at", "asc")
+      );
+      const layoutRequestsSnap = await getDocs(q);
+      const requests = layoutRequestsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as LayoutRequest);
+      setLayoutRequests(requests);
     }
   };
 
@@ -67,10 +67,10 @@ export default function DealDetail() {
     if (!deal) return;
     await updateDoc(doc(db, 'deals', deal.id), { stage: stage });
     alert('Stage updated');
-    fetchDealData();
+    fetchDealData(); // Re-fetch to reflect changes
   };
 
-  const requestLayout = async () => {
+  const requestInitialLayout = async () => {
     if (!deal) return;
     const newStage = 'Layout Requested';
     await updateDoc(doc(db, 'deals', deal.id), { stage: newStage });
@@ -79,33 +79,41 @@ export default function DealDetail() {
       company_name: deal.company_name || '',
       building_name: deal.building_name || '',
       created_at: new Date(),
+      version: 1,
+      revision_notes: 'Initial layout request.',
     });
-    alert('Layout requested');
-    setDeal(prev => (prev ? { ...prev, stage: newStage } : null));
-    setStage(newStage);
+    alert('Layout v1 requested');
+    fetchDealData();
+  };
+  
+  const requestChanges = async () => {
+    if (!deal) return;
+
+    const notes = prompt("Please enter your revision notes:");
+    if (!notes || !notes.trim()) {
+        alert("Revision notes are required to request changes.");
+        return;
+    }
+
+    const nextVersion = layoutRequests.length + 1;
+
+    try {
+        await addDoc(collection(db, 'layout_requests'), {
+            deal_id: deal.id,
+            company_name: deal.company_name || '',
+            building_name: deal.building_name || '',
+            created_at: new Date(),
+            version: nextVersion,
+            revision_notes: notes,
+        });
+        alert(`Layout v${nextVersion} requested successfully.`);
+        fetchDealData(); // Refresh data to show the new request
+    } catch (error) {
+        console.error("Failed to request changes:", error);
+        alert("An error occurred while requesting changes.");
+    }
   };
 
-  const submitRevisionRequest = async () => {
-    if (!deal || !revisionNotes.trim()) {
-      alert('Please enter revision notes.');
-      return;
-    }
-    try {
-      await addDoc(collection(db, 'layout_requests'), {
-        deal_id: deal.id,
-        company_name: deal.company_name || '',
-        building_name: deal.building_name || '',
-        revision_notes: revisionNotes,
-        created_at: new Date(),
-      });
-      alert('Change request submitted successfully.');
-      setShowRevisionForm(false);
-      setRevisionNotes('');
-    } catch (error) {
-      console.error("Failed to submit revision request:", error);
-      alert("Failed to submit revision request.");
-    }
-  };
 
   if (!deal) {
     return <div style={styles.container}><p>Loading...</p></div>;
@@ -133,29 +141,24 @@ export default function DealDetail() {
       </div>
 
       <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>Layout</h2>
-        {layoutUrl ? (
-          <div>
-            <a href={layoutUrl} target="_blank" rel="noopener noreferrer" style={styles.buttonBlue}>Download Layout</a>
-            <button onClick={() => setShowRevisionForm(prev => !prev)} style={styles.buttonSecondary}>
-              {showRevisionForm ? 'Cancel' : 'Request Changes'}
-            </button>
-            {showRevisionForm && (
-              <div style={{ marginTop: '20px' }}>
-                <textarea 
-                  style={styles.textarea}
-                  placeholder="Enter revision notes..."
-                  value={revisionNotes}
-                  onChange={(e) => setRevisionNotes(e.target.value)}
-                />
-                <button onClick={submitRevisionRequest} style={styles.buttonGreen}>Submit Request</button>
-              </div>
-            )}
-          </div>
-        ) : deal.stage === 'Layout Requested' ? (
-          <p>Layout pending delivery.</p>
+        <h2 style={styles.sectionTitle}>Layouts</h2>
+        {layoutRequests.length === 0 ? (
+             <button onClick={requestInitialLayout} style={styles.buttonBlue}>Request Layout (v1)</button>
         ) : (
-          <button onClick={requestLayout} style={styles.buttonBlue}>Request Layout</button>
+            <div>
+                {layoutRequests.map((req, index) => (
+                    <div key={req.id} style={styles.versionEntry}>
+                       <strong style={styles.versionTitle}>Layout v{req.version || (index + 1)}</strong>
+                       {req.layout_url ? (
+                           <a href={req.layout_url} target="_blank" rel="noopener noreferrer" style={styles.buttonBlue}>Download</a>
+                       ) : (
+                           <span style={styles.pendingText}>Pending Upload</span>
+                       )}
+                       {req.revision_notes && <p style={styles.notes}>Notes: {req.revision_notes}</p>}
+                    </div>
+                ))}
+                <button onClick={requestChanges} style={styles.buttonSecondary}>Request Changes</button>
+            </div>
         )}
       </div>
 
@@ -184,8 +187,11 @@ const styles: { [key: string]: React.CSSProperties } = {
   requirementBox: { backgroundColor: '#f9f9f9', border: '1px solid #eee', padding: '20px', borderRadius: '6px', lineHeight: '1.6' },
   actionContainer: { display: 'flex', alignItems: 'center' },
   select: { padding: '12px', marginRight: '10px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '14px', flex: 1 },
-  buttonGreen: { padding: '12px 20px', borderRadius: '5px', border: 'none', backgroundColor: '#28a745', color: 'white', fontSize: '14px', cursor: 'pointer', fontWeight: 'bold', marginTop: '10px' },
-  buttonBlue: { padding: '12px 20px', borderRadius: '5px', border: 'none', backgroundColor: '#007bff', color: 'white', fontSize: '14px', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'none', display: 'inline-block' },
-  buttonSecondary: { padding: '12px 20px', borderRadius: '5px', border: '1px solid #6c757d', backgroundColor: '#6c757d', color: 'white', fontSize: '14px', cursor: 'pointer', fontWeight: 'bold', marginLeft: '10px' },
-  textarea: { width: '100%', padding: '10px', minHeight: '80px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '14px', fontFamily: 'monospace' }
+  buttonGreen: { padding: '12px 20px', borderRadius: '5px', border: 'none', backgroundColor: '#28a745', color: 'white', fontSize: '14px', cursor: 'pointer', fontWeight: 'bold' },
+  buttonBlue: { padding: '10px 15px', borderRadius: '5px', border: 'none', backgroundColor: '#007bff', color: 'white', fontSize: '14px', cursor: 'pointer', textDecoration: 'none', display: 'inline-block' },
+  buttonSecondary: { padding: '12px 20px', borderRadius: '5px', border: '1px solid #6c757d', backgroundColor: '#6c757d', color: 'white', fontSize: '14px', cursor: 'pointer', fontWeight: 'bold', marginTop: '20px' },
+  versionEntry: { borderBottom: '1px solid #eee', padding: '15px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  versionTitle: { fontSize: '16px' },
+  notes: { fontSize: '12px', color: '#666', flexBasis: '100%', paddingTop: '5px' },
+  pendingText: { fontSize: '14px', color: '#888', fontStyle: 'italic' },
 };
