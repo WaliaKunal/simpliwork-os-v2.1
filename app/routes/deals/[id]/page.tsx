@@ -15,6 +15,7 @@ const params = useParams();
 const stages = ['New','Qualified','Layout Requested','Layout Delivered','Proposal Sent','Negotiation','LOI Initiated','LOI Signed','Closed'];
 const [deal,setDeal]=useState<Deal | null>(null); const [stage,setStage]=useState<string>('');
 const updateStage = async () => { if (!deal) return; await updateDoc(doc(db,'deals',deal.id), { stage: stage }); alert('Stage updated'); };
+const requestLayout = async () => { if (!deal) return; await updateDoc(doc(db,'deals',deal.id), { stage: 'Layout Requested' }); await import('firebase/firestore').then(async ({ addDoc, collection }) => { await addDoc(collection(db,'layout_requests'), { deal_id: deal.id, company_name: deal.company_name || '', building_name: deal.building_name || '', created_at: new Date() }); }); alert('Layout requested'); };
 useEffect(()=>{
 const fetchDeal=async()=>{
 const snap=await getDoc(doc(db,'deals',params.id as string));
@@ -32,6 +33,7 @@ return (
 <p>Building: {deal?.building_name}</p>
 <hr/>
 <h3>Actions (next step)</h3>
+<button onClick={requestLayout} style={{padding:10,marginTop:10}}>Request Layout</button>
 <p>Coming next...</p>
 <hr/><h3>Update Stage</h3><select value={stage} onChange={e=>setStage(e.target.value)} style={{padding:8,marginRight:10}}>{stages.map(s=>(<option key={s} value={s}>{s}</option>))}</select><button onClick={updateStage}>Save</button>
 </div>
