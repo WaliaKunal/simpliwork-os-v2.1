@@ -35,9 +35,9 @@ return (
 <br/><br/>
 <input placeholder='Size' value={size} onChange={e=>setSize(e.target.value)} />
 <br/><br/>
-<select value={selectedBuilding} onChange={e=>setSelectedBuilding(e.target.value)}>
-<option value=''>Select Building</option>
-{buildings.map(b=>(<option key={b.id} value={b.id}>{b.name}</option>))}
+<select style={{padding:10,width:'100%',color:'black',background:'white',border:'1px solid #ccc'}} value={selectedBuilding} onChange={e=>setSelectedBuilding(e.target.value)}>
+<option style={{color:'black'}} value=''>Select Building</option>
+{buildings.map(b=>(<option style={{color:'black'}} key={b.id} value={b.id}>{b.name}</option>))}
 </select>
 <br/><br/>
 <button onClick={createDeal}>Create</button>
