@@ -1,68 +1,84 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '@/lib/firebase/firebase';
+import { storage } from '@/lib/firebase/firebase';
 
 type LayoutRequest = {
   id: string;
   company_name?: string;
   building_name?: string;
   deal_id?: string;
-  created_at?: Timestamp;
 };
 
 export default function DesignPage() {
   const [requests, setRequests] = useState<LayoutRequest[]>([]);
+  const [files, setFiles] = useState<{[key:string]: File | null}>({});
 
   useEffect(() => {
     const fetchRequests = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, 'layout_requests'));
-        const requestsData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as LayoutRequest[];
-        setRequests(requestsData);
-      } catch (error) {
-        console.error("Error fetching layout requests:", error);
-      }
+      const snap = await getDocs(collection(db, 'layout_requests'));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() })) as LayoutRequest[];
+      setRequests(list);
     };
-
     fetchRequests();
   }, []);
 
+  const handleFileChange = (id: string, file: File | null) => {
+    setFiles(prev => ({ ...prev, [id]: file }));
+  };
+
+  const uploadLayout = async (req: LayoutRequest) => {
+    const file = files[req.id];
+    if (!file) {
+      alert('Please select a file');
+      return;
+    }
+
+    const storageRef = ref(storage, 'layouts/' + req.deal_id + '/' + file.name);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+
+    // Save URL in layout_requests
+    await updateDoc(doc(db, 'layout_requests', req.id), {
+      layout_url: url
+    });
+
+    // Update deal stage
+    if (req.deal_id) {
+      await updateDoc(doc(db, 'deals', req.deal_id), {
+        stage: 'Layout Delivered'
+      });
+    }
+
+    alert('Layout uploaded');
+  };
+
   return (
     <div style={{ padding: 40, fontFamily: 'monospace' }}>
-      <h1 style={{ fontSize: 24, marginBottom: 20 }}>
-        Design Layout Requests
-      </h1>
+      <h1>Design Dashboard</h1>
 
-      {requests.length > 0 ? (
-        requests.map(request => (
-          <div
-            key={request.id}
-            style={{
-              border: '1px solid #ccc',
-              padding: 15,
-              marginBottom: 15,
-              borderRadius: 6
-            }}
+      {requests.map(r => (
+        <div key={r.id} style={{ border:'1px solid #ccc', padding:15, marginBottom:15 }}>
+          <p><strong>{r.company_name}</strong></p>
+          <p>Building: {r.building_name}</p>
+
+          <input
+            type="file"
+            accept="application/pdf"
+            onChange={e => handleFileChange(r.id, e.target.files?.[0] || null)}
+          />
+
+          <button
+            onClick={() => uploadLayout(r)}
+            style={{ marginTop:10, padding:8 }}
           >
-            <h3>{request.company_name}</h3>
-            <p><strong>Building:</strong> {request.building_name || 'N/A'}</p>
-            <p><strong>Deal ID:</strong> {request.deal_id || 'N/A'}</p>
-            <p>
-              <strong>Requested At:</strong>{' '}
-              {request.created_at?.seconds
-                ? new Date(request.created_at.seconds * 1000).toLocaleString()
-                : 'N/A'}
-            </p>
-          </div>
-        ))
-      ) : (
-        <p>No layout requests found.</p>
-      )}
+            Upload Layout
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
