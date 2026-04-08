@@ -12,7 +12,9 @@ building_name?: string;
 };
 export default function DealDetail(){
 const params = useParams();
+const stages = ['New','Qualified','Layout Requested','Layout Delivered','Proposal Sent','Negotiation','LOI Initiated','LOI Signed','Closed'];
 const [deal,setDeal]=useState<Deal | null>(null); const [stage,setStage]=useState<string>('');
+const updateStage = async () => { if (!deal) return; await updateDoc(doc(db,'deals',deal.id), { stage: stage }); alert('Stage updated'); };
 useEffect(()=>{
 const fetchDeal=async()=>{
 const snap=await getDoc(doc(db,'deals',params.id as string));
@@ -35,4 +37,3 @@ return (
 </div>
 );
 }
-const stages = ['New','Qualified','Layout Requested','Layout Delivered','Proposal Sent','Negotiation','LOI Initiated','LOI Signed','Closed'];
