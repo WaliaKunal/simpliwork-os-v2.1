@@ -24,10 +24,10 @@ fetchDeal();
 },[]);
 return (
 <div style={{padding:40,fontFamily:'monospace'}}>
-<h1>{deal.company_name}</h1>
-<p>Size: {deal.approx_requirement_size}</p>
-<p>Stage: {deal.stage}</p>
-<p>Building: {deal.building_name}</p>
+<h1>{deal?.company_name}</h1>
+<p>Size: {deal?.approx_requirement_size}</p>
+<p>Stage: {deal?.stage}</p>
+<p>Building: {deal?.building_name}</p>
 <hr/>
 <h3>Actions (next step)</h3>
 <p>Coming next...</p>
