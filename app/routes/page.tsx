@@ -1,3 +1,1 @@
-export default function Page() {
-  return <div className="p-6">Page under construction</div>;
-}
+'use client'; import { useAuth } from '@/context/AuthContext'; export default function RoutesHome(){ const { user } = useAuth(); return (<div style={{padding:40,fontFamily:'monospace'}}><h1>Simpliwork OS</h1><p>Welcome {user && user.email}</p><hr/><div><p><a href='/routes/deals'>Deals</a></p><p><a href='/routes/design'>Design</a></p><p><a href='/routes/management'>Management</a></p></div></div>); }
