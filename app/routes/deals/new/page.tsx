@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useRouter } from 'next/navigation';
-type Building = { id: string; name?: string; };
+type Building = { id: string; name?: string; building_code?: string; };
 export default function NewDeal(){
 const [company,setCompany]=useState('');
 const [size,setSize]=useState('');
