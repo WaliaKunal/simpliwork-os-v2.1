@@ -23,7 +23,7 @@ return (
 <div style={{border:'1px solid #ccc',padding:10,marginBottom:10,cursor:'pointer'}}>
 <p><strong>{d.company_name}</strong></p>
 <p>Size: {d.approx_requirement_size}</p>
-<p>Stage: {d.stage}</p>
+<p>Stage: {d.stage}</p><p>Building: {d.building_name}</p>
 </div>
 </Link>
 ))}

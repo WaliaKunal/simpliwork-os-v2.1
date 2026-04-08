@@ -18,11 +18,11 @@ setBuildings(list);
 };
 fetchBuildings();
 },[]);
-const createDeal=async()=>{
+const createDeal=async()=>{ const selected = buildings.find(b => b.id === selectedBuilding);
 await addDoc(collection(db,'deals'),{
 company_name:company,
 approx_requirement_size:Number(size),
-building_id:selectedBuilding,
+building_id:selectedBuilding, building_name:selected?.building_name || selected?.building_code,
 stage:'New',
 created_at:new Date()
 });
