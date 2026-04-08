@@ -31,29 +31,41 @@ export default function DesignPage() {
   };
 
   const uploadLayout = async (req: LayoutRequest) => {
+    console.log("upload started");
     const file = files[req.id];
+
     if (!file) {
       alert('Please select a file');
       return;
     }
 
-    const storageRef = ref(storage, 'layouts/' + req.deal_id + '/' + file.name);
-    await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(storageRef);
+    try {
+      console.log("Selected file:", file.name);
 
-    // Save URL in layout_requests
-    await updateDoc(doc(db, 'layout_requests', req.id), {
-      layout_url: url
-    });
+      const storageRef = ref(storage, 'layouts/' + req.deal_id + '/' + file.name);
+      await uploadBytes(storageRef, file);
+      console.log("File uploaded to storage");
 
-    // Update deal stage
-    if (req.deal_id) {
-      await updateDoc(doc(db, 'deals', req.deal_id), {
-        stage: 'Layout Delivered'
+      const url = await getDownloadURL(storageRef);
+      console.log("Download URL:", url);
+
+      // Save URL in layout_requests
+      await updateDoc(doc(db, 'layout_requests', req.id), {
+        layout_url: url
       });
-    }
 
-    alert('Layout uploaded');
+      // Update deal stage
+      if (req.deal_id) {
+        await updateDoc(doc(db, 'deals', req.deal_id), {
+          stage: 'Layout Delivered'
+        });
+      }
+
+      alert('Layout uploaded successfully!');
+    } catch (error: any) {
+      console.error("Upload failed:", error);
+      alert('Upload failed: ' + error.message);
+    }
   };
 
   return (
