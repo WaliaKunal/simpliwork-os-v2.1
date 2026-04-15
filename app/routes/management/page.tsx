@@ -19,13 +19,23 @@ type LayoutRequest = {
 type DealActivity = {
   id: string;
   deal_id: string;
-  created_at: any; // Firestore Timestamp or Date
+  created_at: any;
 };
 
 const StatCard = ({ title, value }: { title: string; value: string | number }) => (
   <div style={styles.statCard}>
     <p style={styles.statValue}>{value}</p>
     <p style={styles.statLabel}>{title}</p>
+  </div>
+);
+
+const DealListItem = ({ deal, lastActivityDate }: { deal: Deal; lastActivityDate?: Date }) => (
+  <div style={styles.dealItem}>
+    <span style={styles.dealId}>ID: {deal.id}</span>
+    <span style={styles.dealStage}>Stage: {deal.stage || 'N/A'}</span>
+    <span style={styles.dealActivity}>
+      Last Activity: {lastActivityDate ? lastActivityDate.toLocaleString() : 'None'}
+    </span>
   </div>
 );
 
@@ -36,17 +46,16 @@ export default function Page() {
   useEffect(() => {
     const fetchAndCalculateStats = async () => {
       try {
-        // Fetch data
         const dealsSnap = await getDocs(collection(db, 'deals'));
         const deals = dealsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Deal[];
 
         const requestsSnap = await getDocs(collection(db, 'layout_requests'));
         const layoutRequests = requestsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as LayoutRequest[];
-        
+
         const activitiesSnap = await getDocs(collection(db, 'deal_activities'));
         const activities = activitiesSnap.docs.map(d => ({ id: d.id, ...d.data() })) as DealActivity[];
 
-        // --- Existing Calculations ---
+        // --- Base Metrics ---
         const totalDeals = deals.length;
 
         const dealsByStage = deals.reduce((acc, deal) => {
@@ -83,7 +92,7 @@ export default function Page() {
           return acc;
         }, {} as { [key: string]: number });
 
-        // --- Pipeline Health ---
+        // --- Activity Mapping ---
         const latestActivityByDeal: { [key: string]: Date } = {};
 
         activities.forEach(activity => {
@@ -101,31 +110,72 @@ export default function Page() {
           }
         });
 
-        const threeDaysAgo = new Date();
-        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        const now = new Date();
+        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
+        // --- Stale Count ---
         const staleDealsCount = deals.filter(deal => {
           const lastActivityDate = latestActivityByDeal[deal.id];
           return lastActivityDate && lastActivityDate < threeDaysAgo;
         }).length;
 
-        // Final stats object
+        // --- Priority Engine ---
+        const needsAttentionDeals: Deal[] = [];
+        const hotDeals: Deal[] = [];
+        const deadDeals: Deal[] = [];
+
+        deals.forEach(deal => {
+          const lastActivityDate = latestActivityByDeal[deal.id];
+          const stage = deal.stage || 'Unknown';
+
+          // Needs Attention (3–7 days)
+          if (
+            lastActivityDate &&
+            lastActivityDate < threeDaysAgo &&
+            lastActivityDate >= sevenDaysAgo &&
+            stage !== 'Closed'
+          ) {
+            needsAttentionDeals.push(deal);
+          }
+
+          // Hot Deals (<24h + critical stages)
+          const hotStages = ['Proposal Sent', 'Negotiation', 'LOI Initiated'];
+          if (
+            lastActivityDate &&
+            lastActivityDate > twentyFourHoursAgo &&
+            hotStages.includes(stage)
+          ) {
+            hotDeals.push(deal);
+          }
+
+          // Dead Deals (>7 days)
+          if (lastActivityDate && lastActivityDate < sevenDaysAgo) {
+            deadDeals.push(deal);
+          }
+        });
+
         setStats({
           totalDeals,
           dealsByStage,
           layoutRequested: dealsByStage['Layout Requested'] || 0,
           layoutDelivered: dealsByStage['Layout Delivered'] || 0,
           totalLayoutRequests: layoutRequests.length,
-          dealsWithIterations: dealsWithMoreThanOneRequest,
+          dealsWithIterations,
           loiSigned: dealsByStage['LOI Signed'] || 0,
           dealsBySalesOwner,
           activeDealsBySalesOwner,
           dealsBySource,
           staleDealsCount,
+          latestActivityByDeal,
+          needsAttentionDeals,
+          hotDeals,
+          deadDeals,
         });
 
       } catch (error) {
-        console.error("Failed to generate dashboard data:", error);
+        console.error("Dashboard error:", error);
       } finally {
         setLoading(false);
       }
@@ -141,71 +191,58 @@ export default function Page() {
   return (
     <div style={styles.container}>
       <h1 style={styles.title}>Management Dashboard</h1>
-      
+
       <div style={styles.section}>
         <h2 style={styles.sectionTitle}>Key Metrics</h2>
         <div style={styles.cardContainer}>
           <StatCard title="Total Deals" value={stats.totalDeals} />
-          <StatCard title="Total Layout Requests" value={stats.totalLayoutRequests} />
-          <StatCard title="Deals in LOI Signed" value={stats.loiSigned} />
-          <StatCard title="Deals with >1 Layout Request" value={stats.dealsWithIterations} />
           <StatCard title="Stale Deals (3d+)" value={stats.staleDealsCount} />
+          <StatCard title="Deals in LOI Signed" value={stats.loiSigned} />
         </div>
       </div>
 
       <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>Deal Stages</h2>
-        <div style={styles.cardContainer}>
-          {Object.entries(stats.dealsByStage || {}).map(([stage, count]) => (
-            <StatCard key={stage} title={stage} value={count as number} />
-          ))}
-        </div>
+        <h2 style={styles.sectionTitle}>Hot Deals 🔥</h2>
+        {stats.hotDeals.length > 0
+          ? stats.hotDeals.map((d: Deal) => (
+              <DealListItem key={d.id} deal={d} lastActivityDate={stats.latestActivityByDeal[d.id]} />
+            ))
+          : <p style={styles.noItemsText}>No hot deals</p>}
       </div>
 
       <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>Layout Funnel</h2>
-        <div style={styles.cardContainer}>
-          <StatCard title="Layout Requested" value={stats.layoutRequested} />
-          <StatCard title="Layout Delivered" value={stats.layoutDelivered} />
-        </div>
+        <h2 style={styles.sectionTitle}>Needs Attention ⚠️</h2>
+        {stats.needsAttentionDeals.length > 0
+          ? stats.needsAttentionDeals.map((d: Deal) => (
+              <DealListItem key={d.id} deal={d} lastActivityDate={stats.latestActivityByDeal[d.id]} />
+            ))
+          : <p style={styles.noItemsText}>No deals need attention</p>}
       </div>
 
       <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>Sales Performance</h2>
-        <div style={styles.cardContainer}>
-          {Object.keys(stats.dealsBySalesOwner).map(owner => (
-            <div key={owner} style={styles.groupedCardContainer}>
-              <h3 style={styles.groupedCardTitle}>
-                {owner.includes('@') ? owner.split('@')[0] : owner}
-              </h3>
-              <StatCard title="Total Deals" value={stats.dealsBySalesOwner[owner]} />
-              <StatCard title="Active Deals" value={stats.activeDealsBySalesOwner[owner] || 0} />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>Source Performance</h2>
-        <div style={styles.cardContainer}>
-          {Object.entries(stats.dealsBySource).map(([source, count]) => (
-            <StatCard key={source} title={source} value={count as number} />
-          ))}
-        </div>
+        <h2 style={styles.sectionTitle}>Dead Deals 💀</h2>
+        {stats.deadDeals.length > 0
+          ? stats.deadDeals.map((d: Deal) => (
+              <DealListItem key={d.id} deal={d} lastActivityDate={stats.latestActivityByDeal[d.id]} />
+            ))
+          : <p style={styles.noItemsText}>No dead deals</p>}
       </div>
     </div>
   );
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
-  container: { padding: '40px', fontFamily: 'monospace', backgroundColor: '#f4f4f9' },
-  title: { fontSize: '28px', marginBottom: '30px', color: '#333' },
-  section: { backgroundColor: '#fff', border: '1px solid #ddd', borderRadius: '8px', padding: '25px', marginBottom: '30px' },
-  sectionTitle: { fontSize: '20px', marginTop: 0, marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '15px' },
-  cardContainer: { display: 'flex', flexWrap: 'wrap', gap: '20px' },
-  statCard: { backgroundColor: '#f9f9f9', border: '1px solid #eee', borderRadius: '8px', padding: '20px', minWidth: '180px', textAlign: 'center' },
-  statValue: { fontSize: '32px', fontWeight: 'bold', margin: '0 0 5px 0', color: '#007bff' },
-  statLabel: { fontSize: '14px', color: '#555', margin: 0 },
-  groupedCardContainer: { display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#f0f0f0', padding: '15px', borderRadius: '8px', border: '1px solid #e0e0e0' },
-  groupedCardTitle: { fontSize: '16px', textAlign: 'center', margin: '0 0 10px 0', color: '#333', fontWeight: 'bold' },
+  container: { padding: '40px', fontFamily: 'monospace' },
+  title: { fontSize: '28px', marginBottom: '30px' },
+  section: { marginBottom: '30px' },
+  sectionTitle: { fontSize: '20px', marginBottom: '15px' },
+  cardContainer: { display: 'flex', gap: '20px', flexWrap: 'wrap' },
+  statCard: { padding: '20px', border: '1px solid #ddd', borderRadius: '8px', minWidth: '150px' },
+  statValue: { fontSize: '28px', fontWeight: 'bold' },
+  statLabel: { fontSize: '12px' },
+  dealItem: { display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid #eee' },
+  dealId: { fontWeight: 'bold' },
+  dealStage: {},
+  dealActivity: { fontSize: '12px', color: '#666' },
+  noItemsText: { fontStyle: 'italic' },
 };
