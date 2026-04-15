@@ -69,7 +69,8 @@ export default function Page() {
           return acc;
         }, {} as { [key: string]: number });
 
-        const dealsWithMoreThanOneRequest = Object.values(requestCountsByDeal).filter(count => count > 1).length;
+        // ✅ FIX: define dealsWithIterations properly
+        const dealsWithIterations = Object.values(requestCountsByDeal).filter(count => count > 1).length;
 
         // --- Sales Performance ---
         const dealsBySalesOwner: { [key: string]: number } = {};
@@ -115,7 +116,6 @@ export default function Page() {
         const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
         const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-        // --- Stale Count ---
         const staleDealsCount = deals.filter(deal => {
           const lastActivityDate = latestActivityByDeal[deal.id];
           return lastActivityDate && lastActivityDate < threeDaysAgo;
@@ -130,7 +130,6 @@ export default function Page() {
           const lastActivityDate = latestActivityByDeal[deal.id];
           const stage = deal.stage || 'Unknown';
 
-          // Needs Attention (3–7 days)
           if (
             lastActivityDate &&
             lastActivityDate < threeDaysAgo &&
@@ -140,7 +139,6 @@ export default function Page() {
             needsAttentionDeals.push(deal);
           }
 
-          // Hot Deals (<24h + critical stages)
           const hotStages = ['Proposal Sent', 'Negotiation', 'LOI Initiated'];
           if (
             lastActivityDate &&
@@ -150,7 +148,6 @@ export default function Page() {
             hotDeals.push(deal);
           }
 
-          // Dead Deals (>7 days)
           if (lastActivityDate && lastActivityDate < sevenDaysAgo) {
             deadDeals.push(deal);
           }
@@ -196,36 +193,30 @@ export default function Page() {
         <h2 style={styles.sectionTitle}>Key Metrics</h2>
         <div style={styles.cardContainer}>
           <StatCard title="Total Deals" value={stats.totalDeals} />
+          <StatCard title="Deals with Iterations" value={stats.dealsWithIterations} />
           <StatCard title="Stale Deals (3d+)" value={stats.staleDealsCount} />
-          <StatCard title="Deals in LOI Signed" value={stats.loiSigned} />
         </div>
       </div>
 
       <div style={styles.section}>
         <h2 style={styles.sectionTitle}>Hot Deals 🔥</h2>
-        {stats.hotDeals.length > 0
-          ? stats.hotDeals.map((d: Deal) => (
-              <DealListItem key={d.id} deal={d} lastActivityDate={stats.latestActivityByDeal[d.id]} />
-            ))
-          : <p style={styles.noItemsText}>No hot deals</p>}
+        {stats.hotDeals.map((d: Deal) => (
+          <DealListItem key={d.id} deal={d} lastActivityDate={stats.latestActivityByDeal[d.id]} />
+        ))}
       </div>
 
       <div style={styles.section}>
         <h2 style={styles.sectionTitle}>Needs Attention ⚠️</h2>
-        {stats.needsAttentionDeals.length > 0
-          ? stats.needsAttentionDeals.map((d: Deal) => (
-              <DealListItem key={d.id} deal={d} lastActivityDate={stats.latestActivityByDeal[d.id]} />
-            ))
-          : <p style={styles.noItemsText}>No deals need attention</p>}
+        {stats.needsAttentionDeals.map((d: Deal) => (
+          <DealListItem key={d.id} deal={d} lastActivityDate={stats.latestActivityByDeal[d.id]} />
+        ))}
       </div>
 
       <div style={styles.section}>
         <h2 style={styles.sectionTitle}>Dead Deals 💀</h2>
-        {stats.deadDeals.length > 0
-          ? stats.deadDeals.map((d: Deal) => (
-              <DealListItem key={d.id} deal={d} lastActivityDate={stats.latestActivityByDeal[d.id]} />
-            ))
-          : <p style={styles.noItemsText}>No dead deals</p>}
+        {stats.deadDeals.map((d: Deal) => (
+          <DealListItem key={d.id} deal={d} lastActivityDate={stats.latestActivityByDeal[d.id]} />
+        ))}
       </div>
     </div>
   );
@@ -236,13 +227,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   title: { fontSize: '28px', marginBottom: '30px' },
   section: { marginBottom: '30px' },
   sectionTitle: { fontSize: '20px', marginBottom: '15px' },
-  cardContainer: { display: 'flex', gap: '20px', flexWrap: 'wrap' },
-  statCard: { padding: '20px', border: '1px solid #ddd', borderRadius: '8px', minWidth: '150px' },
-  statValue: { fontSize: '28px', fontWeight: 'bold' },
+  cardContainer: { display: 'flex', gap: '20px' },
+  statCard: { padding: '20px', border: '1px solid #ddd' },
+  statValue: { fontSize: '24px', fontWeight: 'bold' },
   statLabel: { fontSize: '12px' },
   dealItem: { display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid #eee' },
   dealId: { fontWeight: 'bold' },
   dealStage: {},
-  dealActivity: { fontSize: '12px', color: '#666' },
-  noItemsText: { fontStyle: 'italic' },
+  dealActivity: { fontSize: '12px' },
 };
