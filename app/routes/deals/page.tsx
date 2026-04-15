@@ -17,9 +17,9 @@ fetchDeals();
 return (
 <div style={{padding:40,fontFamily:'monospace'}}>
 <h1>Deals</h1>
-<p><a href='/routes/deals/new'>+ Create Deal</a></p>
+<p><a href='/deals/new'>+ Create Deal</a></p>
 {deals.map(d=>( 
-<Link key={d.id} href={'/routes/deals/'+d.id}>
+<Link key={d.id} href={'/deals/'+d.id}>
 <div style={{border:'1px solid #ccc',padding:10,marginBottom:10,cursor:'pointer'}}>
 <p><strong>{d.company_name}</strong></p>
 <p>Size: {d.approx_requirement_size}</p>
