@@ -50,14 +50,14 @@ export default function DesignPage() {
       console.log("Download URL:", url);
 
       // Save URL in layout_requests
-      await updateDoc(doc(db, 'layout_requests', req.id), {
-        layout_url: url
+      await updateDoc(doc(db, 'deals', req.deal_id), {
+        stage: 'Layout Delivered',
       });
 
       // Update deal stage
       if (req.deal_id) {
         await updateDoc(doc(db, 'deals', req.deal_id), {
-          stage: 'Layout Delivered'
+          stage: 'Layout Delivered', updatedAt: new Date()
         });
       }
 
