@@ -22,6 +22,8 @@ export default function NewDealPage() {
 
     try {
       await addDoc(collection(db, 'deals'), {
+  sales_owner_email: 'kwalia@simpliwork.com',
+  source_name: 'Direct',
         company_name: companyName,
         approx_requirement_size: Number(requirementSize) || 0,
         requirement_text: requirementNotes,
