@@ -67,12 +67,6 @@ export default function Page() {
 
         const totalDeals = deals.length;
 
-        const dealsByStage = deals.reduce((acc, deal) => {
-          const stage = deal.stage || 'Unknown';
-          acc[stage] = (acc[stage] || 0) + 1;
-          return acc;
-        }, {} as { [key: string]: number });
-
         const requestCountsByDeal = layoutRequests.reduce((acc, req) => {
           if (req.deal_id) {
             acc[req.deal_id] = (acc[req.deal_id] || 0) + 1;
@@ -81,25 +75,6 @@ export default function Page() {
         }, {} as { [key: string]: number });
 
         const dealsWithIterations = Object.values(requestCountsByDeal).filter(count => count > 1).length;
-
-        const dealsBySalesOwner: { [key: string]: number } = {};
-        const activeDealsBySalesOwner: { [key: string]: number } = {};
-
-        deals.forEach(deal => {
-          const owner = deal.sales_owner_email || 'Unassigned';
-          dealsBySalesOwner[owner] = (dealsBySalesOwner[owner] || 0) + 1;
-
-          const isActive = deal.stage !== 'Closed' && deal.stage !== 'Lost';
-          if (isActive) {
-            activeDealsBySalesOwner[owner] = (activeDealsBySalesOwner[owner] || 0) + 1;
-          }
-        });
-
-        const dealsBySource = deals.reduce((acc, deal) => {
-          const source = deal.source_name || 'Unknown';
-          acc[source] = (acc[source] || 0) + 1;
-          return acc;
-        }, {} as { [key: string]: number });
 
         const latestActivityByDeal: { [key: string]: Date } = {};
 
@@ -168,15 +143,7 @@ export default function Page() {
 
         setStats({
           totalDeals,
-          dealsByStage,
-          layoutRequested: dealsByStage['Layout Requested'] || 0,
-          layoutDelivered: dealsByStage['Layout Delivered'] || 0,
-          totalLayoutRequests: layoutRequests.length,
           dealsWithIterations,
-          loiSigned: dealsByStage['LOI Signed'] || 0,
-          dealsBySalesOwner,
-          activeDealsBySalesOwner,
-          dealsBySource,
           staleDealsCount,
           latestActivityByDeal,
           needsAttentionDeals: fallbackNeedsAttentionDeals,
@@ -219,7 +186,7 @@ export default function Page() {
                 key={deal.id}
                 deal={deal}
                 lastActivityDate={stats.latestActivityByDeal[deal.id]}
-                onClick={() => router.push(`/routes/deals/${deal.id}`)}
+                onClick={() => router.push(`/deals/${deal.id}`)}
               />
             ))
           ) : (
@@ -237,7 +204,7 @@ export default function Page() {
                 key={deal.id}
                 deal={deal}
                 lastActivityDate={stats.latestActivityByDeal[deal.id]}
-                onClick={() => router.push(`/routes/deals/${deal.id}`)}
+                onClick={() => router.push(`/deals/${deal.id}`)}
               />
             ))
           ) : (
@@ -255,7 +222,7 @@ export default function Page() {
                 key={deal.id}
                 deal={deal}
                 lastActivityDate={stats.latestActivityByDeal[deal.id]}
-                onClick={() => router.push(`/routes/deals/${deal.id}`)}
+                onClick={() => router.push(`/deals/${deal.id}`)}
               />
             ))
           ) : (
