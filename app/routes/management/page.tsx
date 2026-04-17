@@ -13,237 +13,199 @@ type Deal = {
   source_name?: string;
 };
 
-type LayoutRequest = {
-  id: string;
-  deal_id?: string;
-};
-
 type DealActivity = {
   id: string;
   deal_id: string;
   created_at: any;
 };
 
-const StatCard = ({ title, value }: { title: string; value: string | number }) => (
+const StatCard = ({ title, value }: { title: string; value: number }) => (
   <div style={styles.statCard}>
-    <p style={styles.statValue}>{value}</p>
-    <p style={styles.statLabel}>{title}</p>
-  </div>
-);
-
-const DealListItem = ({
-  deal,
-  lastActivityDate,
-  onClick,
-}: {
-  deal: Deal;
-  lastActivityDate?: Date;
-  onClick: () => void;
-}) => (
-  <div style={styles.dealItem} onClick={onClick}>
-    <span style={styles.dealId}>
-      {deal.company_name || deal.id}
-    </span>
-    <span style={styles.dealStage}>Stage: {deal.stage || 'N/A'}</span>
-    <span style={styles.dealActivity}>
-      Last Activity: {lastActivityDate ? lastActivityDate.toLocaleString() : 'None'}
-    </span>
+    <div style={styles.statValue}>{value}</div>
+    <div style={styles.statLabel}>{title}</div>
   </div>
 );
 
 export default function Page() {
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(null);
   const router = useRouter();
 
   useEffect(() => {
-    const fetchAndCalculateStats = async () => {
-      try {
-        const dealsSnap = await getDocs(collection(db, 'deals'));
-        const deals = dealsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Deal[];
+    const run = async () => {
+      const dealsSnap = await getDocs(collection(db, 'deals'));
+      const deals = dealsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Deal[];
 
-        const layoutSnap = await getDocs(collection(db, 'layout_requests'));
-        const layoutRequests = layoutSnap.docs.map(d => ({ id: d.id, ...d.data() })) as LayoutRequest[];
+      const actSnap = await getDocs(collection(db, 'deal_activities'));
+      const activities = actSnap.docs.map(d => ({ id: d.id, ...d.data() })) as DealActivity[];
 
-        const activitySnap = await getDocs(collection(db, 'deal_activities'));
-        const activities = activitySnap.docs.map(d => ({ id: d.id, ...d.data() })) as DealActivity[];
+      const latest: any = {};
 
-        const totalDeals = deals.length;
+      activities.forEach(a => {
+        const dt = a.created_at?.toDate ? a.created_at.toDate() : new Date(a.created_at);
+        if (!latest[a.deal_id] || dt > latest[a.deal_id]) {
+          latest[a.deal_id] = dt;
+        }
+      });
 
-        // --- Layout iterations ---
-        const requestCountsByDeal: { [key: string]: number } = {};
-        layoutRequests.forEach(req => {
-          if (req.deal_id) {
-            requestCountsByDeal[req.deal_id] = (requestCountsByDeal[req.deal_id] || 0) + 1;
-          }
-        });
+      const now = new Date();
+      const last3d = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
-        const dealsWithIterations = Object.values(requestCountsByDeal).filter(c => c > 1).length;
+      // --- PRIORITY ENGINE ---
+      const scored: any[] = [];
 
-        // --- Activity mapping ---
-        const latestActivityByDeal: { [key: string]: Date } = {};
+      deals.forEach(d => {
+        const last = latest[d.id];
+        const stage = d.stage || '';
 
-        activities.forEach(a => {
-          if (a.deal_id && a.created_at) {
-            const date = a.created_at?.toDate
-              ? a.created_at.toDate()
-              : new Date(a.created_at);
+        let score = 0;
 
-            if (!latestActivityByDeal[a.deal_id] || date > latestActivityByDeal[a.deal_id]) {
-              latestActivityByDeal[a.deal_id] = date;
-            }
-          }
-        });
+        if (stage === 'Negotiation') score += 5;
+        if (stage === 'LOI Initiated') score += 6;
+        if (stage === 'Proposal Sent') score += 4;
 
-        const now = new Date();
-        const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        const last3d = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-        const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        if (last) {
+          if (last > new Date(now.getTime() - 24 * 60 * 60 * 1000)) score += 3;
+          else if (last > last3d) score += 1;
+          else score -= 2;
+        } else {
+          score -= 3;
+        }
 
-        // --- CEO METRICS ---
-        const noActivityDeals = deals.filter(d => !latestActivityByDeal[d.id]).length;
+        scored.push({ deal: d, score });
+      });
 
-        // --- INTELLIGENCE ENGINE (SCORING) ---
-        const scoredDeals: { deal: Deal; score: number }[] = [];
+      scored.sort((a, b) => b.score - a.score);
 
-        deals.forEach(deal => {
-          const lastActivity = latestActivityByDeal[deal.id];
-          const stage = deal.stage || 'Unknown';
+      const hot = scored.filter(x => x.score >= 6).map(x => x.deal);
+      const attention = scored.filter(x => x.score >= 2 && x.score < 6).map(x => x.deal);
+      const dead = scored.filter(x => x.score < 2).map(x => x.deal);
 
-          let score = 0;
+      // --- SALES PERFORMANCE ---
+      const sales: any = {};
+      deals.forEach(d => {
+        const owner = d.sales_owner_email || 'Unassigned';
+        if (!sales[owner]) sales[owner] = { total: 0, active: 0 };
 
-          // Stage importance
-          if (stage === 'Negotiation') score += 5;
-          if (stage === 'LOI Initiated') score += 6;
-          if (stage === 'Proposal Sent') score += 4;
+        sales[owner].total++;
 
-          // Recency
-          if (lastActivity) {
-            if (lastActivity > last24h) score += 3;
-            else if (lastActivity > last3d) score += 1;
-            else score -= 2;
-          } else {
-            score -= 3;
-          }
+        if (d.stage !== 'Closed' && d.stage !== 'Lost') {
+          sales[owner].active++;
+        }
+      });
 
-          scoredDeals.push({ deal, score });
-        });
+      // --- SOURCE PERFORMANCE ---
+      const source: any = {};
+      deals.forEach(d => {
+        const s = d.source_name || 'Unknown';
+        source[s] = (source[s] || 0) + 1;
+      });
 
-        // Sort by importance
-        scoredDeals.sort((a, b) => b.score - a.score);
+      // --- PIPELINE HEALTH ---
+      const stageCount: any = {};
+      deals.forEach(d => {
+        const st = d.stage || 'Unknown';
+        stageCount[st] = (stageCount[st] || 0) + 1;
+      });
 
-        const hotDeals = scoredDeals.filter(d => d.score >= 6).map(d => d.deal);
-        const needsAttentionDeals = scoredDeals.filter(d => d.score >= 2 && d.score < 6).map(d => d.deal);
-        const deadDeals = scoredDeals.filter(d => d.score < 2).map(d => d.deal);
-
-        setStats({
-          totalDeals,
-          dealsWithIterations,
-          noActivityDeals,
-          latestActivityByDeal,
-          hotDeals,
-          needsAttentionDeals,
-          deadDeals,
-        });
-
-      } catch (err) {
-        console.error('Dashboard error:', err);
-      } finally {
-        setLoading(false);
-      }
+      setData({
+        total: deals.length,
+        hot,
+        attention,
+        dead,
+        latest,
+        sales,
+        source,
+        stageCount,
+      });
     };
 
-    fetchAndCalculateStats();
+    run();
   }, []);
 
-  if (loading || !stats) {
-    return <div style={styles.container}>Loading...</div>;
-  }
+  if (!data) return <div style={styles.container}>Loading...</div>;
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.title}>Management Dashboard</h1>
+      <h1>Management Dashboard</h1>
 
-      <div style={styles.cardContainer}>
-        <StatCard title="Total Deals" value={stats.totalDeals} />
-        <StatCard title="Deals with Iterations" value={stats.dealsWithIterations} />
-        <StatCard title="No Activity Deals" value={stats.noActivityDeals} />
+      {/* --- KEY --- */}
+      <div style={styles.row}>
+        <StatCard title="Total Deals" value={data.total} />
+        <StatCard title="Hot Deals" value={data.hot.length} />
+        <StatCard title="Needs Attention" value={data.attention.length} />
+        <StatCard title="Dead Deals" value={data.dead.length} />
       </div>
 
-      <Section
-        title="🔥 Hot Deals"
-        deals={stats.hotDeals}
-        latest={stats.latestActivityByDeal}
-        router={router}
-      />
+      {/* --- HOT --- */}
+      <Section title="🔥 Hot Deals" deals={data.hot} latest={data.latest} router={router} />
 
-      <Section
-        title="⚠️ Needs Attention"
-        deals={stats.needsAttentionDeals}
-        latest={stats.latestActivityByDeal}
-        router={router}
-      />
+      <Section title="⚠️ Needs Attention" deals={data.attention} latest={data.latest} router={router} />
 
-      <Section
-        title="💀 Dead Deals"
-        deals={stats.deadDeals}
-        latest={stats.latestActivityByDeal}
-        router={router}
-      />
+      <Section title="💀 Dead Deals" deals={data.dead} latest={data.latest} router={router} />
+
+      {/* --- SALES --- */}
+      <h2>Sales Performance</h2>
+      {Object.entries(data.sales).map(([k, v]: any) => (
+        <div key={k} style={styles.line}>
+          {k.split('@')[0]} → Total: {v.total} | Active: {v.active}
+        </div>
+      ))}
+
+      {/* --- SOURCE --- */}
+      <h2>Source Performance</h2>
+      {Object.entries(data.source).map(([k, v]: any) => (
+        <div key={k} style={styles.line}>
+          {k} → {v}
+        </div>
+      ))}
+
+      {/* --- PIPELINE --- */}
+      <h2>Pipeline Distribution</h2>
+      {Object.entries(data.stageCount).map(([k, v]: any) => (
+        <div key={k} style={styles.line}>
+          {k} → {v}
+        </div>
+      ))}
     </div>
   );
 }
 
-// --- Reusable section ---
 function Section({ title, deals, latest, router }: any) {
   return (
-    <div style={styles.section}>
-      <h2 style={styles.sectionTitle}>{title}</h2>
-
+    <>
+      <h2>{title}</h2>
       {deals.length === 0 ? (
-        <p style={styles.noItemsText}>None</p>
+        <div style={{ fontStyle: 'italic' }}>None</div>
       ) : (
-        deals.map((deal: Deal) => (
-          <DealListItem
-            key={deal.id}
-            deal={deal}
-            lastActivityDate={latest[deal.id]}
-            onClick={() => router.push(`/deals/${deal.id}`)}
-          />
+        deals.map((d: Deal) => (
+          <div
+            key={d.id}
+            style={styles.deal}
+            onClick={() => router.push(`/deals/${d.id}`)}
+          >
+            {d.company_name || d.id} | {d.stage} |{' '}
+            {latest[d.id] ? latest[d.id].toLocaleString() : 'No activity'}
+          </div>
         ))
       )}
-    </div>
+    </>
   );
 }
 
-const styles: { [key: string]: React.CSSProperties } = {
-  container: { padding: '40px', fontFamily: 'monospace' },
-  title: { fontSize: '28px', marginBottom: '30px' },
-  cardContainer: { display: 'flex', gap: '20px', marginBottom: '30px' },
+const styles: any = {
+  container: { padding: 40, fontFamily: 'monospace' },
+  row: { display: 'flex', gap: 20, marginBottom: 20 },
+  statCard: { border: '1px solid #ccc', padding: 15 },
+  statValue: { fontSize: 22, fontWeight: 'bold' },
+  statLabel: { fontSize: 12 },
 
-  statCard: {
-    padding: '20px',
-    border: '1px solid #ddd',
-    borderRadius: '8px',
-    minWidth: '180px',
-  },
-  statValue: { fontSize: '24px', fontWeight: 'bold' },
-  statLabel: { fontSize: '12px' },
-
-  section: { marginBottom: '30px' },
-  sectionTitle: { fontSize: '20px', marginBottom: '10px' },
-
-  dealItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    padding: '10px',
+  deal: {
+    padding: 10,
     borderBottom: '1px solid #eee',
     cursor: 'pointer',
   },
 
-  dealId: { fontWeight: 'bold' },
-  dealStage: {},
-  dealActivity: { fontSize: '12px' },
-
-  noItemsText: { fontStyle: 'italic', color: '#888' },
+  line: {
+    padding: 6,
+  },
 };
